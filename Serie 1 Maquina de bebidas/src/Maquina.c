@@ -507,7 +507,7 @@ void EXTI4_15_IRQHandler(void)
                 lcd_cmd_nb(0x01);
 				lcd_cmd_nb(0x80); lcd_print_nb("Seleccione");
 				lcd_cmd_nb(0xC0); lcd_print_nb("Bebida A/B");
-				LED1_OFF(); LED2_OFF(); LED3_OFF(); BZ_ON();
+				LED1_OFF(); LED2_OFF(); LED3_OFF(); BZ_OFF();
             }
 
         }
