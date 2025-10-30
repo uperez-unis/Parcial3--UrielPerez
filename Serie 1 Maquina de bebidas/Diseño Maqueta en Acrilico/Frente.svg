@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="29.700001cm"
+   height="42cm"
+   viewBox="0 0 1122.5197 1587.4016"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   sodipodi:docname="Frente.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <style
+     id="style3">
+.measure-arrow
+{
+}
+.measure-label
+{
+
+}
+.measure-line
+{
+}</style>
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#999999"
+     borderopacity="1"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="cm"
+     showgrid="true"
+     showguides="false"
+     inkscape:zoom="0.48375784"
+     inkscape:cx="635.64861"
+     inkscape:cy="441.33652"
+     inkscape:window-width="1366"
+     inkscape:window-height="745"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       id="grid1"
+       units="cm"
+       originx="0"
+       originy="0"
+       spacingx="37.795277"
+       spacingy="37.795275"
+       empcolor="#0099e5"
+       empopacity="0.30196078"
+       color="#0099e5"
+       opacity="0.14902"
+       empspacing="5"
+       enabled="true"
+       visible="true" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1">
+    <inkscape:path-effect
+       effect="measure_segments"
+       linked_items=""
+       id="path-effect1"
+       is_visible="true"
+       lpeversion="1.3.1"
+       unit="mm"
+       orientation="parallel"
+       coloropacity="#000000ff"
+       fontbutton="Sans 10"
+       precision="2"
+       fix_overlaps="0"
+       position="5"
+       text_top_bottom="0"
+       helpline_distance="0"
+       helpline_overlap="2"
+       line_width="0.25"
+       scale="1"
+       format="{measure}{unit}"
+       blacklist=""
+       active_projection="false"
+       whitelist="false"
+       showindex="false"
+       arrows_outside="false"
+       flip_side="false"
+       scale_sensitive="true"
+       local_locale="true"
+       rotate_anotation="true"
+       hide_back="true"
+       hide_arrows="false"
+       smallx100="false"
+       distance_projection="20"
+       angle_projection="0"
+       avoid_overlapping="true"
+       onbbox="false"
+       bboxonly="false"
+       centers="false"
+       maxmin="false"
+       helpdata="" />
+    <inkscape:path-effect
+       effect="measure_segments"
+       linked_items=""
+       id="path-effect8"
+       is_visible="true"
+       lpeversion="1.3.1"
+       unit="cm"
+       orientation="parallel"
+       coloropacity="#000000ff"
+       fontbutton="Sans 10"
+       precision="2"
+       fix_overlaps="0"
+       position="5"
+       text_top_bottom="15"
+       helpline_distance="0"
+       helpline_overlap="0"
+       line_width="0"
+       scale="1"
+       format="{measure}{unit}"
+       blacklist=""
+       active_projection="false"
+       whitelist="false"
+       showindex="false"
+       arrows_outside="false"
+       flip_side="true"
+       scale_sensitive="true"
+       local_locale="true"
+       rotate_anotation="true"
+       hide_back="true"
+       hide_arrows="false"
+       smallx100="false"
+       distance_projection="20"
+       angle_projection="0"
+       avoid_overlapping="true"
+       onbbox="false"
+       bboxonly="false"
+       centers="false"
+       maxmin="false"
+       helpdata="" />
+    <inkscape:path-effect
+       effect="measure_segments"
+       linked_items=""
+       id="path-effect3"
+       is_visible="true"
+       lpeversion="1.3.1"
+       unit="mm"
+       orientation="parallel"
+       coloropacity="#000000ff"
+       fontbutton="Sans 10"
+       precision="2"
+       fix_overlaps="0"
+       position="5"
+       text_top_bottom="0"
+       helpline_distance="0"
+       helpline_overlap="2"
+       line_width="0.25"
+       scale="1"
+       format="{measure}{unit}"
+       blacklist=""
+       active_projection="false"
+       whitelist="false"
+       showindex="false"
+       arrows_outside="false"
+       flip_side="false"
+       scale_sensitive="true"
+       local_locale="true"
+       rotate_anotation="true"
+       hide_back="true"
+       hide_arrows="false"
+       smallx100="false"
+       distance_projection="20"
+       angle_projection="0"
+       avoid_overlapping="true"
+       onbbox="false"
+       bboxonly="false"
+       centers="false"
+       maxmin="false"
+       helpdata="" />
+    <marker
+       id="ArrowDINout-start"
+       class="rect1 path-effect8 measure-arrow-marker"
+       inkscape:stockid="ArrowDINout-start"
+       orient="auto"
+       refX="0.0"
+       refY="0.0"
+       sodipodi:insensitive="true">
+      <path
+         d="M 0,0 -16,2.11 -16,0.5 -26,0.5 -26,-0.5 -16,-0.5 -16,-2.11 z"
+         class="rect1 path-effect8 measure-arrow"
+         id="ArrowDINout-start_path"
+         style="fill:context-stroke;;fill-opacity:1;stroke:none" />
+    </marker>
+    <marker
+       id="ArrowDINout-end"
+       class="rect1 path-effect8 measure-arrow-marker"
+       inkscape:stockid="ArrowDINout-end"
+       orient="auto"
+       refX="0.0"
+       refY="0.0"
+       sodipodi:insensitive="true">
+      <path
+         d="M 0,0 16,-2.11 16,-0.5 26,-0.5 26,0.5 16,0.5 16,2.11 z"
+         class="rect1 path-effect8 measure-arrow"
+         id="ArrowDINout-end_path"
+         style="fill:context-stroke;;fill-opacity:1;stroke:none" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Capa 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       id="rect1"
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:1.00157"
+       d="M 302.85352 151.68164 L 302.85352 227.27149 L 314.20118 227.27149 L 314.20118 302.86329 L 302.85352 302.86329 L 302.85352 1134.3594 L 314.20118 1134.3594 L 314.20118 1209.9492 L 302.85352 1209.9492 L 302.85352 1285.541 L 378.45313 1285.541 L 378.45313 1274.2012 L 454.04493 1274.2012 L 454.04493 1285.541 L 605.21485 1285.541 L 605.21485 605.23048 L 1058.7676 605.23048 L 1058.7676 531.25782 L 1058.7676 529.63477 L 1058.7676 454.04493 L 1058.7676 302.86329 L 1047.4297 302.86329 L 1047.4297 227.27149 L 1058.7676 227.27149 L 1058.7676 151.68164 L 983.17775 151.68164 L 983.17775 163.01953 L 907.58791 163.01953 L 907.58791 151.68164 L 454.04493 151.68164 L 454.04493 163.01953 L 378.45313 163.01953 L 378.45313 151.68164 L 302.85352 151.68164 z M 378.45313 291.52344 L 454.04493 291.52344 L 454.04493 302.86329 L 378.45313 302.86329 L 378.45313 291.52344 z M 907.58791 291.52344 L 983.17775 291.52344 L 983.17775 302.86329 L 907.58791 302.86329 L 907.58791 291.52344 z M 756.40626 378.45313 L 945.38283 378.45313 L 945.38283 454.04493 L 756.40626 454.04493 L 756.40626 378.45313 z M 378.45313 440.88868 L 643.01954 440.88868 L 643.01954 527.81837 L 378.45313 527.81837 L 378.45313 440.88868 z M 737.50978 503.06446 C 742.72853 503.06424 746.95922 507.29493 746.959 512.51368 C 746.95814 517.73167 742.72777 521.96117 737.50978 521.96095 C 732.29179 521.96117 728.06142 517.73167 728.06056 512.51368 C 728.06034 507.29493 732.29103 503.06424 737.50978 503.06446 z M 850.8965 503.06446 C 856.11525 503.06424 860.34594 507.29493 860.34572 512.51368 C 860.34486 517.73167 856.11449 521.96117 850.8965 521.96095 C 845.67851 521.96117 841.44814 517.73167 841.44728 512.51368 C 841.44706 507.29493 845.67775 503.06424 850.8965 503.06446 z M 964.28127 503.06446 C 969.50002 503.06424 973.73071 507.29493 973.73049 512.51368 C 973.72963 517.73167 969.49926 521.96117 964.28127 521.96095 C 959.06405 521.96009 954.83486 517.7309 954.834 512.51368 C 954.83378 507.29569 959.06328 503.06532 964.28127 503.06446 z M 397.35157 1058.7676 L 510.73829 1058.7676 L 510.73829 1096.5645 L 397.35157 1096.5645 L 397.35157 1058.7676 z " />
+    <path
+       style="stroke:#000000;stroke-width:0;stroke-opacity:1"
+       d="m 76.091798,151.68164 v -5"
+       id="infoline-on-end-5-path-effect8" />
+    <path
+       style="stroke:#000000;stroke-width:0;stroke-opacity:1"
+       d="m 76.091798,1285.541 v 5"
+       id="infoline-on-start-1-path-effect8" />
+    <path
+       style="stroke:#000000;stroke-width:0;stroke-opacity:1"
+       d="m 76.091798,1285.541 h -5"
+       id="infoline-on-end-0-path-effect8" />
+    <path
+       style="stroke:#000000;stroke-width:0;stroke-opacity:1"
+       d="m 76.091798,151.68164 h -5"
+       id="infoline-on-start-0-path-effect8" />
+  </g>
+</svg>
