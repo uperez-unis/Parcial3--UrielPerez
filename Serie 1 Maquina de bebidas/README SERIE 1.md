@@ -51,7 +51,7 @@ Proyecto de una máquina llenadora de bebidas con STM32L053R8, programada en C u
 | USART2 | 9600 baud | Logs | Depuración por serie |
 
 ## Videos (YouTube)
-- Explicación del código: https://youtu.be/4FcIEX1wMjI
-- Funcionamiento de la máquina: https://youtube.com/shorts/UG-UgMT1PaI
+- [Explicación del código](https://youtu.be/4FcIEX1wMjI)
+- [Funcionamiento de la máquina](https://youtube.com/shorts/UG-UgMT1PaI)
 
 
