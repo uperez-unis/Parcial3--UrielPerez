@@ -2,7 +2,7 @@
 #include "stm32l053xx.h"
 
 /*
-        * Keypad 4x4 (acá solo uso la columna PB12 y filas PB8..PB11: A/B/C/D)
+        * Keypad 4x4 (Columnas PB12-PB15 y filas PB8..PB11: A/B/C/D)
         * LCD 16x2 en 4 bits (RS=PA0, E=PA1, D4=PA8, D5=PA10, D6=PA5, D7=PA6)
         * Display 7 segmentos 4 dígitos (PB0..PB7 segmentos, PC5/PC6/PC8/PC9 dígitos)
         * Stepper en PC0..PC3 (seleccionar válvula A o B)
@@ -16,6 +16,10 @@
 #define STEPS_PER_REV   2048u	// Cantidad aproximada de pasos
 #define STEP_RATE_HZ    400u	// Velocidad
 #define STEPS_30_DEG    (STEPS_PER_REV/19)   // Angulo de giro aprox 20°
+
+static inline void lcd_cmd_nb (uint8_t cmd);
+static inline void lcd_data_nb(uint8_t ch );
+static void lcd_print_nb(const char* s);
 
 // USART2 para logs
 // PA2=TX, PA3=RX con función alternativa AF4. Baud 9600 a 16 MHz.
@@ -129,6 +133,18 @@ typedef enum
 static volatile sel_t sel = SEL_NONE;   // acá guardo si el usuario eligió A, B o nada
 static volatile uint8_t val1_on=0, val2_on=0;  // flags para saber si cada válvula está abierta
 
+typedef enum
+{
+	S_IDLE=0,
+	S_POSICIONANDO,
+	S_TAMANO, S_READY,
+	S_LLENANDO,
+	S_FINAL
+} ctrl_state_t;
+
+static volatile ctrl_state_t ctrl_state = S_IDLE;
+static volatile uint16_t target_sec = 0; // 0|5|10|15
+
 // Esto es para detectar flancos en las teclas (A/B/C/D) y hacer un debounce simple por IRQ
 static volatile uint8_t prev_A=0, prev_B=0, prev_C=0, prev_D=0;
 
@@ -171,30 +187,38 @@ static inline void stepper_stop(void)
 void TIM21_IRQHandler(void)
 {
     if (TIM21->SR & TIM_SR_UIF)
-    {           // cada tick de TIM21 es un paso
+    {
         TIM21->SR &= ~TIM_SR_UIF;
 
-        if (pos_steps < target_steps) // tengo que avanzar
+        if (pos_steps < target_steps)
         {
-            phase = (phase == 4) ? 1 : (phase + 1);
-            coils_write(phase);
-            pos_steps++;
-            if (pos_steps == target_steps)
+        	phase=(phase==4)?1:(phase+1);
+        	coils_write(phase); pos_steps++;
+        }
+        else if (pos_steps > target_steps)
+        {
+        	phase=(phase==1)?4:(phase-1);
+        	coils_write(phase); pos_steps--;
+        }
+
+        if (pos_steps == target_steps)
+        {
+            stepper_stop();
+            if(ctrl_state == S_POSICIONANDO)
             {
-            	stepper_stop(); USART2_PutstringE("Posicionado");
+                lcd_cmd_nb(0x01);
+                lcd_cmd_nb(0x80); lcd_print_nb("Tamano: 1=5s");
+                lcd_cmd_nb(0xC0); lcd_print_nb("2=10s 3=15s");
+                ctrl_state = S_TAMANO;
             }
-        } else if (pos_steps > target_steps)
-        {
-            phase = (phase == 1) ? 4 : (phase - 1);
-            coils_write(phase);
-            pos_steps--;
-            if (pos_steps == target_steps)
+            else if(ctrl_state == S_FINAL && target_steps==0)
             {
-            	stepper_stop(); USART2_PutstringE("Posicionado");
+                sel = SEL_NONE; target_sec=0;
+               // lcd_cmd_nb(0x01);
+                //lcd_cmd_nb(0x80); lcd_print_nb("Seleccione");
+                //lcd_cmd_nb(0xC0); lcd_print_nb("Bebida A/B");
+                ctrl_state = S_IDLE;
             }
-        } else
-        {
-            stepper_stop();  // por si acaso
         }
     }
 }
@@ -266,6 +290,7 @@ void TIM22_IRQHandler(void)
 // Solo cuenta cuando alguna válvula está abierta
 static volatile uint8_t fill_min = 0;  // 0-99
 static volatile uint8_t fill_sec = 0;  // 0-59
+
 void TIM2_IRQHandler(void)
 {
     if (TIM2->SR & TIM_SR_UIF)
@@ -274,14 +299,40 @@ void TIM2_IRQHandler(void)
 
         if (val1_on || val2_on)
         {
-            // sumo 1 segundo
+            // 1) El cronómetro interno (elapsed) sigue contando hacia ARRIBA
             fill_sec++;
-            if (fill_sec >= 60)
-            {
+            if (fill_sec >= 60) {
                 fill_sec = 0;
-                if (fill_min < 99) fill_min++;   // tope 99:59
+                if (fill_min < 99) fill_min++;   // tope 99 min
             }
-            update_digits_from_mmss(fill_min, fill_sec);
+
+            // 2) Calculamos elapsed y restante, y mostramos COUNTDOWN
+            uint16_t elapsed = (uint16_t)fill_min*60u + (uint16_t)fill_sec;
+            uint16_t remaining = 0;
+
+            if (ctrl_state == S_LLENANDO && target_sec > 0) {
+                remaining = (elapsed < target_sec) ? (uint16_t)(target_sec - elapsed) : 0u;
+                update_digits_from_mmss(remaining/60, remaining%60);
+            } else {
+                // (Por seguridad) si no hay tamaño, mostrar contado normal
+                update_digits_from_mmss(fill_min, fill_sec);
+            }
+
+            // 3) Auto-stop al llegar a 0
+            if (ctrl_state == S_LLENANDO && target_sec > 0 && remaining == 0u)
+            {
+                if (val1_on){ VAL1_OFF(); val1_on=0; }
+                if (val2_on){ VAL2_OFF(); val2_on=0; }
+                LED2_OFF(); LED3_ON(); BZ_OFF();
+
+                lcd_cmd_nb(0x01);
+                lcd_cmd_nb(0x80); lcd_print_nb("Finalizado");
+                lcd_cmd_nb(0xC0); lcd_print_nb("Seleccione A/B");
+
+                target_steps = 0;
+                stepper_start_to_target();
+                ctrl_state = S_FINAL;
+            }
         }
     }
 }
@@ -343,6 +394,7 @@ static void lcd_enqueue(uint8_t data, uint8_t is_data)
     lcd_q[(lcd_q_head+1)&(LCD_QSIZE-1)] = data;
     lcd_q_head = next;
 }
+
 static inline void lcd_cmd_nb (uint8_t cmd){ lcd_enqueue(cmd, 0); }
 static inline void lcd_data_nb(uint8_t ch ){ lcd_enqueue(ch, 1); }
 static void lcd_print_nb(const char* s){ while(*s) lcd_data_nb((uint8_t)*s++); }
@@ -371,180 +423,279 @@ static void lcd_init_nb_begin(void)
 }
 
 // El SysTick (1ms) va despachando nibbles a la LCD con los pulsos E y los tiempos mínimos
-void SysTick_Handler(void)
-{
-    if(lcd_wait_ms){                 // si estoy esperando, solo decremento y me voy
-        lcd_wait_ms--;
-        return;
-    }
-    switch(lcd_state)
-    {
-    case LCD_IDLE:
-        if(lcd_q_tail != lcd_q_head){               // si hay algo en la cola, lo agarro
-            lcd_is_data = lcd_q[lcd_q_tail];
-            lcd_q_tail = (uint8_t)((lcd_q_tail+1)&(LCD_QSIZE-1));
-            lcd_cur_byte = lcd_q[lcd_q_tail];
-            lcd_q_tail = (uint8_t)((lcd_q_tail+1)&(LCD_QSIZE-1));
-            LCD_RS(lcd_is_data);
-            lcd_state = LCD_PUT4_HI;
-        }
-        break;
-    case LCD_PUT4_HI:
-    {
-        uint8_t hi = (lcd_cur_byte>>4)&0x0F;        // nibble alto
-        lcd_bus_write_nibble(hi);
-        LCD_E(1);                                   // pulso de enable
-        lcd_wait_ms = 1;                            // le doy ~1ms alto
-        lcd_state = LCD_PULSE_HI;
-    } break;
-    case LCD_PULSE_HI:
-        LCD_E(0);
-        lcd_wait_ms = 1;                            // ~1ms entre nibble alto y bajo
-        lcd_state = LCD_PUT4_LO;
-        break;
-    case LCD_PUT4_LO: {
-        uint8_t lo = lcd_cur_byte & 0x0F;           // nibble bajo
-        lcd_bus_write_nibble(lo);
-        LCD_E(1);
-        lcd_wait_ms = 1;
-        lcd_state = LCD_PULSE_LO;
-    } break;
-    case LCD_PULSE_LO:
-        LCD_E(0);
-        // Clear/Home tardan más, acá le doy 2ms extra y ya
-        if(!lcd_is_data && (lcd_cur_byte==0x01u || lcd_cur_byte==0x02u)){
-            lcd_wait_ms = 2;
-        }
-        lcd_state = LCD_IDLE;
-        break;
-    default:
-        lcd_state = LCD_IDLE;
-        break;
-    }
-}
+
+
 
 // Keypad por EXTI (PB8..PB11 leen A/B/C/D en la columna PB12)
-// pongo PB12=0 y las filas PB8..PB11 tienen pull-up.
+// pongo PB12-PB15=0 y las filas PB8..PB11 tienen pull-up.
 // Si alguna fila lee 0, significa que esa tecla de esa columna se presionó.
+static const uint8_t kbd_col_pins[4] = {12,13,14,15}; // C0..C3 = PB12..PB15
+static const uint8_t kbd_row_pins[4] = { 8, 9,10,11}; // R0..R3 = PB8..PB11
+
+static const char kbd_keymap[4][4] =
+{
+    // C0=PB12  C1=PB13  C2=PB14  C3=PB15
+    { 'A',      '3',     '2',     '1' },  // R0=PB8
+    { 'B',      '6',     '5',     '4' },  // R1=PB9
+    { 'C',      '9',     '8',     '7' },  // R2=PB10
+    { 'D',      '#',     '0',     '*' }   // R3=PB11
+};
+
+static volatile uint8_t  kbd_col_idx    = 0;  // índice que va rotando en SysTick
+static volatile uint8_t  kbd_active_col = 0;  // columna en 0 en este ms
+static volatile uint16_t kbd_dead_ms    = 0;  // ventana muerta antirrebote
+
+static inline void kbd_cols_all_high(void)
+{
+    GPIOB->BSRR = (1u<<12)|(1u<<13)|(1u<<14)|(1u<<15);
+}
+
+static inline void kbd_drive_col_low(uint8_t cidx)
+{
+    kbd_cols_all_high();
+    GPIOB->BSRR = (1u<<(kbd_col_pins[cidx]+16)); // baja una columna
+}
+
+
 static inline uint32_t read_rows(void)
 {
 	return (GPIOB->IDR >> 8) & 0x0Fu; // 0 = presionada
 }
 
+void SysTick_Handler(void){
+    // 1) KEYPAD
+    if (kbd_dead_ms)
+    	kbd_dead_ms--;
+
+    kbd_active_col = kbd_col_idx;
+    kbd_drive_col_low(kbd_active_col);
+    kbd_col_idx = (uint8_t)((kbd_col_idx + 1u) & 0x03u);
+
+    // 2) LCD FSM
+    if(lcd_wait_ms)
+    {
+    	lcd_wait_ms--; return;
+    }
+    switch(lcd_state)
+    {
+    case LCD_IDLE:
+        if(lcd_q_tail != lcd_q_head)
+        {
+            lcd_is_data = lcd_q[lcd_q_tail];
+            lcd_q_tail=(uint8_t)((lcd_q_tail+1)&(LCD_QSIZE-1));
+            lcd_cur_byte = lcd_q[lcd_q_tail];
+            lcd_q_tail=(uint8_t)((lcd_q_tail+1)&(LCD_QSIZE-1));
+            LCD_RS(lcd_is_data); lcd_state = LCD_PUT4_HI;
+        }
+        break;
+
+    case LCD_PUT4_HI:
+    {
+        uint8_t hi=(lcd_cur_byte>>4)&0x0F;
+        lcd_bus_write_nibble(hi);
+        LCD_E(1); lcd_wait_ms=1;
+        lcd_state=LCD_PULSE_HI;
+    }
+    break;
+
+    case LCD_PULSE_HI:
+    	LCD_E(0);
+    	lcd_wait_ms=1;
+    	lcd_state=LCD_PUT4_LO;
+    	break;
+
+    case LCD_PUT4_LO:
+    {
+        uint8_t lo=lcd_cur_byte&0x0F;
+        lcd_bus_write_nibble(lo);
+        LCD_E(1);
+        lcd_wait_ms=1;
+        lcd_state=LCD_PULSE_LO;
+    }
+    break;
+
+    case LCD_PULSE_LO:
+        LCD_E(0);
+        if(!lcd_is_data && (lcd_cur_byte==0x01u || lcd_cur_byte==0x02u))
+        	lcd_wait_ms=2;
+
+        lcd_state=LCD_IDLE;
+        break;
+
+    default:
+    	lcd_state=LCD_IDLE;
+    	break;
+    }
+}
+
 void EXTI4_15_IRQHandler(void)
 {
     uint32_t pending = EXTI->PR & ((1u<<8)|(1u<<9)|(1u<<10)|(1u<<11));
-    if (pending)
+    if (!pending)
     {
-        // Dejo todas las columnas en 1 y PB12 en 0 para “leer” esa columna
-        GPIOB->ODR |=  (0x0Fu << 12);
-        GPIOB->ODR &= ~(1u    << 12);
-
-        uint32_t rows = read_rows();
-        uint8_t A = ((rows & 0x1u) == 0u);
-        uint8_t B = ((rows & 0x2u) == 0u);
-        uint8_t C = ((rows & 0x4u) == 0u);
-        uint8_t D = ((rows & 0x8u) == 0u);
-
-        // A = Selecciono bebida A y muevo el stepper hacia A
-        if (A && !prev_A)
-        {
-            sel = SEL_A;
-            target_steps = -(int32_t)STEPS_30_DEG;    // giro hacia el lado A
-            USART2_PutstringE("Bebida A seleccionada");
-            stepper_start_to_target();
-            LED1_ON(); LED2_OFF(); LED3_OFF(); BZ_OFF();
-
-            // LCD: aviso que quedó lista para llenar A
-            lcd_cmd_nb(0x01);
-            lcd_cmd_nb(0x80); lcd_print_nb("A: Coca-coca");
-            lcd_cmd_nb(0xC0); lcd_print_nb("C: Iniciar");
-        }
-
-        // B = Selecciono bebida B y muevo el stepper hacia B
-        if (B && !prev_B)
-        {
-            sel = SEL_B;
-            target_steps =  (int32_t)STEPS_30_DEG;    // giro hacia el lado B
-            USART2_PutstringE("Bebida B seleccionada");
-            stepper_start_to_target();
-            LED1_ON(); LED2_OFF(); LED3_OFF(); BZ_OFF();
-
-            // LCD: aviso que quedó lista para llenar B
-            lcd_cmd_nb(0x01);
-            lcd_cmd_nb(0x80); lcd_print_nb("B: Pepsi");
-            lcd_cmd_nb(0xC0); lcd_print_nb("C: Iniciar");
-        }
-
-        // C = Inicio de llenado: abro la válvula según la selección y reseteo contador
-        if (C && !prev_C)
-        {
-        	fill_min = 0;
-        	fill_sec = 0;
-        	update_digits_from_mmss(fill_min, fill_sec);
-
-            if (sel == SEL_A)
-            {
-                VAL1_ON();  val1_on = 1;
-                if (val2_on){ VAL2_OFF(); val2_on = 0; }
-                USART2_PutstringE("Llenando bebida A...");
-                lcd_cmd_nb(0x01);
-				lcd_cmd_nb(0x80); lcd_print_nb("Llenando...");
-				lcd_cmd_nb(0xC0); lcd_print_nb("D: cancelar");
-				LED1_OFF(); LED2_ON(); LED3_OFF(); BZ_ON();
-            } else if (sel == SEL_B)
-            {
-                VAL2_ON();  val2_on = 1;
-                if (val1_on){ VAL1_OFF(); val1_on = 0; }
-                USART2_PutstringE("Llenando bebida B...");
-                lcd_cmd_nb(0x01);
-				lcd_cmd_nb(0x80); lcd_print_nb("Llenando...");
-				lcd_cmd_nb(0xC0); lcd_print_nb("D: cancelar");
-				LED1_OFF(); LED2_ON(); LED3_OFF(); BZ_ON();
-            } else
-            {
-                USART2_PutstringE("Seleccione bebida primero");
-                lcd_cmd_nb(0x01);
-				lcd_cmd_nb(0x80); lcd_print_nb("Seleccione");
-				lcd_cmd_nb(0xC0); lcd_print_nb("Bebida A/B");
-				LED1_OFF(); LED2_OFF(); LED3_OFF(); BZ_OFF();
-            }
-
-        }
-
-        // D = Finalizo el llenado: cierro válvulas y regreso el brazo a 0°
-        if (D && !prev_D)
-        {
-            if (val1_on)
-            {
-            	VAL1_OFF(); val1_on=0;
-            }
-            if (val2_on)
-            {
-            	VAL2_OFF(); val2_on=0;
-            }
-            target_steps = 0;                 // regreso a 0°
-            sel = SEL_NONE;
-            USART2_PutstringE("Llenado finalizado");
-            stepper_start_to_target();
-            LED1_OFF(); LED2_OFF(); LED3_ON(); BZ_OFF();
-
-            // LCD: listo otra vez para escoger
-            lcd_cmd_nb(0x01);
-            lcd_cmd_nb(0x80); lcd_print_nb("Finalizado");
-            lcd_cmd_nb(0xC0); lcd_print_nb("Seleccione A/B");
-        }
-
-        // Actualizo previos para detectar flancos bien
-        prev_A=A; prev_B=B; prev_C=C; prev_D=D;
-
-        // Dejo PB12 activo de nuevo
-        GPIOB->ODR |=  (0x0Fu << 12);
-        GPIOB->ODR &= ~(1u    << 12);
-
-        EXTI->PR = pending;   // limpio las banderas de la EXTI
+    	return;
     }
+
+    if (kbd_dead_ms==0)
+    {
+        uint32_t rows = read_rows(); // 0=pulsada
+        int8_t r = -1;
+        if((rows & 0x1u)==0u) r=0;
+        else if((rows & 0x2u)==0u) r=1;
+        else if((rows & 0x4u)==0u) r=2;
+        else if((rows & 0x8u)==0u) r=3;
+
+        if (r>=0)
+        {
+            char key = kbd_keymap[r][kbd_active_col];  // USAR columna congelada
+
+            /* Selección A/B (solo si no estamos llenando) */
+            if ((key=='A' || key=='B') && ctrl_state!=S_LLENANDO)
+            {
+                VAL1_OFF(); val1_on=0; VAL2_OFF(); val2_on=0; BZ_OFF();
+
+                if (key=='A')
+                {
+                    sel = SEL_A;
+                    target_steps = -(int32_t)STEPS_30_DEG;
+
+                    USART2_PutstringE("Bebida A seleccionada");
+                    USART2_PutstringE("Bebida A Coca-Cola");
+                    USART2_PutstringE("Seleccione Tamaño: 1=5s, 2=10s, 3=15s");
+                   // lcd_cmd_nb(0x01);
+                   // lcd_cmd_nb(0x80); lcd_print_nb("A: Coca-cola");
+                   // lcd_cmd_nb(0xC0); lcd_print_nb("Posicionando...");
+                }
+
+                else{
+                    sel = SEL_B;
+                    target_steps =  (int32_t)STEPS_30_DEG;
+
+                    USART2_PutstringE("Bebida B seleccionada");
+                    USART2_PutstringE("Bebida B Pepsi");
+					USART2_PutstringE("Seleccione Tamaño: 1=5s, 2=10s, 3=15s");
+                 //  lcd_cmd_nb(0x01);
+                   // lcd_cmd_nb(0x80); lcd_print_nb("B: Pepsi");
+                   // lcd_cmd_nb(0xC0); lcd_print_nb("Posicionando...");
+                }
+
+                LED1_ON(); LED2_OFF(); LED3_OFF();
+                stepper_start_to_target();
+                ctrl_state = S_POSICIONANDO;
+                kbd_dead_ms = 30u;
+                EXTI->PR = pending; return;
+            }
+
+            //* Tamaño 1/2/3
+            if ((key=='1' || key=='2' || key=='3') && ctrl_state==S_TAMANO)
+            {
+                target_sec = (key=='1')?5u : (key=='2')?10u : 15u;
+
+                lcd_cmd_nb(0x01);
+                lcd_cmd_nb(0x80); lcd_print_nb("C: Iniciar");
+                lcd_cmd_nb(0xC0);
+
+                if (target_sec==5)
+                	lcd_print_nb("t=5s   D:detener");
+
+                if (target_sec==10)
+                	lcd_print_nb("t=10s  D:detener");
+
+                if (target_sec==15)
+                	lcd_print_nb("t=15s  D:detener");
+
+                ctrl_state = S_READY;
+                kbd_dead_ms = 30u;
+                EXTI->PR = pending; return;
+            }
+
+            /* C inicia solo en READY */
+            if (key=='C' && ctrl_state==S_READY || ctrl_state==S_TAMANO)
+            {
+                fill_min=0; fill_sec=0;
+
+                if (target_sec > 0)
+                {
+                    uint16_t rem0 = target_sec;
+                    update_digits_from_mmss(rem0/60, rem0%60);
+                } else
+                {
+                    update_digits_from_mmss(0, 0);
+                }
+
+                if (sel==SEL_A)
+                {
+                	VAL1_ON();
+                	val1_on=1;
+                	if(val2_on)
+                	{
+                		VAL2_OFF();
+                		val2_on=0;
+                	}
+
+                	USART2_PutstringE("Llenando A...");
+                }
+
+                else if (sel==SEL_B)
+                {
+                	VAL2_ON();
+                	val2_on=1;
+                	if(val1_on)
+                	{
+                		VAL1_OFF();
+                		val1_on=0;
+                	}
+                	USART2_PutstringE("Llenando B...");
+                }
+
+                else
+                {
+                	kbd_dead_ms=30u;
+                	EXTI->PR=pending;
+                	return;
+                }
+                LED1_OFF(); LED2_ON(); LED3_OFF(); BZ_ON();
+
+                lcd_cmd_nb(0x01);
+                lcd_cmd_nb(0x80); lcd_print_nb("Llenando...");
+                lcd_cmd_nb(0xC0); lcd_print_nb("D: Finalizar");
+                ctrl_state = S_LLENANDO;
+                kbd_dead_ms = 30u;
+                EXTI->PR = pending;
+                return;
+            }
+
+            // D detiene solo en LLENANDO
+            if (key=='D' && ctrl_state==S_LLENANDO)
+            {
+                if (val1_on)
+                {
+                	VAL1_OFF(); val1_on=0;
+                }
+                if (val2_on)
+                {
+                	VAL2_OFF(); val2_on=0;
+                }
+
+                LED2_OFF(); LED3_ON(); BZ_OFF();
+
+                USART2_PutstringE("Llenado finalizado (manual)");
+
+                lcd_cmd_nb(0x01);
+                lcd_cmd_nb(0x80); lcd_print_nb("Finalizado");
+                lcd_cmd_nb(0xC0); lcd_print_nb("Seleccione A/B");
+                target_steps=0; stepper_start_to_target();
+                ctrl_state=S_FINAL;
+                kbd_dead_ms = 30u;
+                EXTI->PR = pending;
+                return;
+            }
+        }
+        kbd_dead_ms = 15u; // pequeña ventana incluso si no mapeó
+    }
+    EXTI->PR = pending;
 }
+
 
 // inicializo todo y suelto las IRQs
 int main(void){
@@ -557,7 +708,8 @@ int main(void){
 
     // USART2 para logs
     USART2_init();
-    USART2_PutstringE("Seleccione bebida");
+    USART2_PutstringE("Maquina Llenadora de Bebidas");
+	USART2_PutstringE("Seleccione bebida: A/B");
 
     // Stepper en PC0..PC3 como salidas
     GPIOC->MODER &= ~((3u<<(0*2))|(3u<<(1*2))|(3u<<(2*2))|(3u<<(3*2)));
@@ -584,11 +736,12 @@ int main(void){
     // Keypad: PB12..PB15 como salidas (columnas) y PB8..PB11 como entradas con pull-up (filas)
     GPIOB->MODER &= ~(0xFFu << 24);
     GPIOB->MODER |=  (0x55u << 24);      // PB12..PB15 = salida
-    GPIOB->ODR   |=  (0x0Fu << 12);      // todas columnas en 1
-    GPIOB->ODR   &= ~(1u    << 12);      // PB12 = 0 (columna activa)
+
+    //Filas
     GPIOB->MODER &= ~(0xFFu << 16);      // PB8..PB11 = entrada
     GPIOB->PUPDR &= ~(0xFFu << 16);
     GPIOB->PUPDR |=  (0x55u << 16);      // pull-up en filas
+    kbd_cols_all_high(); // arranque
 
     // LEDs de estado (PA11, PA12, PA15)
     GPIOA->MODER &= ~((3u<<(11*2)) | (3u<<(12*2)) | (3u<<(15*2)));
@@ -648,5 +801,3 @@ int main(void){
 
     }
 }
-
-
